@@ -41,18 +41,21 @@
         .btn-reset { background: #8e8e93; color: white; }
         .btn-copy { background: var(--primary); color: white; }
         
-        /* 편집 구역 레이아웃 조정 */
+        /* 편집 구역 스타일 개편 */
         .admin-section { border-top: 1px dashed #d1d1d6; padding-top: 16px; margin-top: 10px; }
         .admin-title { font-size: 13px; color: #8e8e93; margin-bottom: 8px; font-weight: bold; }
-        .input-group { display: flex; gap: 6px; margin-bottom: 8px; }
-        .input-group input { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; width: 50%; }
-        .checkbox-label { display: flex; align-items: center; font-size: 12px; color: #666; gap: 3px; white-space: nowrap; }
+        .input-group { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+        .input-group input[type="text"] { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+        
+        /* 모바일 터치 미스 방지를 위해 체크박스 영역 분리 및 확대 */
+        .check-container { display: flex; align-items: center; gap: 4px; cursor: pointer; padding: 4px; }
+        .check-container input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; margin: 0; }
+        .checkbox-label { font-size: 13px; color: #333; font-weight: 600; user-select: none; cursor: pointer; }
         
         .manage-list { max-height: 130px; overflow-y: auto; font-size: 12px; color: #777; padding: 0 4px; }
         .manage-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #f2f2f2; }
         .manage-btn-group { display: flex; gap: 4px; }
         .btn-order { background: #f2f2f7; border: 1px solid var(--border); border-radius: 4px; color: #555; cursor: pointer; font-size: 11px; padding: 2px 6px; font-weight: bold; }
-        .btn-order:active { background: #e5e5ea; }
         .btn-del { background: none; border: none; color: var(--hot); cursor: pointer; font-size: 11px; padding: 2px 5px; margin-left: 4px; }
 
         @media (max-width: 380px) {
@@ -68,7 +71,7 @@
 <body>
 
 <div class="container">
-    <h1>📋 주문 취합기</h1>
+    <h1>📋 회의 주문 취합기</h1>
 
     <div class="menu-grid" id="menuGrid"></div>
 
@@ -85,14 +88,16 @@
         <button class="btn-main btn-copy" onclick="copyToClipboard()">복사</button>
     </div>
 
+    <!-- [오류 수정] 체크박스와 라벨 구조를 완벽히 독립시켜 모바일 터치 씹힘 현상 방지 -->
     <div class="admin-section">
         <div class="admin-title">⚙️ 메뉴판 편집 (순서 조정 및 추가/삭제)</div>
         <div class="input-group">
-            <input type="text" id="newMenuName" placeholder="메뉴명">
-            <label class="checkbox-label">
-                <input type="checkbox" id="hasTemp" checked> H/I
-            </label>
-            <button class="btn-cnt" style="background:var(--primary); color:white; width:40px; height:33px; font-size:13px;" onclick="addMenu()">등록</button>
+            <input type="text" id="newMenuName" placeholder="메뉴명 입력">
+            <div class="check-container">
+                <input type="checkbox" id="hasTemp" checked>
+                <label for="hasTemp" class="checkbox-label">H/I</label>
+            </div>
+            <button class="btn-cnt" style="background:var(--primary); color:white; width:45px; height:33px; font-size:13px; border-radius:6px;" onclick="addMenu()">등록</button>
         </div>
         <div class="manage-list" id="manageList"></div>
     </div>
@@ -108,9 +113,9 @@
         { name: '자몽에이드', hasTemp: false }
     ];
 
-    // 저장 키 이름 변경하여 깨끗하게 새로 시작 (v4)
-    let menuList = JSON.parse(localStorage.getItem('mtMenuBoard_v4')) || defaultMenus;
-    let orderCounts = JSON.parse(localStorage.getItem('mtOrders_v4')) || {};
+    // 신규 데이터를 안전하게 불러오기 위해 버전 접미사 v5로 변경
+    let menuList = JSON.parse(localStorage.getItem('mtMenuBoard_v5')) || defaultMenus;
+    let orderCounts = JSON.parse(localStorage.getItem('mtOrders_v5')) || {};
 
     function render() {
         const grid = document.getElementById('menuGrid');
@@ -119,7 +124,6 @@
         manageList.innerHTML = '';
 
         menuList.forEach((menu, index) => {
-            // 1. 상단 메뉴판 그리드 렌더링
             const card = document.createElement('div');
             card.className = 'menu-card';
             
@@ -165,7 +169,6 @@
             card.appendChild(counterGroup);
             grid.appendChild(card);
 
-            // 2. 하단 편집 리스트 렌더링 (▲, ▼ 버튼 추가)
             const mItem = document.createElement('div');
             mItem.className = 'manage-item';
             mItem.innerHTML = `
@@ -180,17 +183,14 @@
         });
 
         updateSummary();
-        localStorage.setItem('mtMenuBoard_v4', JSON.stringify(menuList));
-        localStorage.setItem('mtOrders_v4', JSON.stringify(orderCounts));
+        localStorage.setItem('mtMenuBoard_v5', JSON.stringify(menuList));
+        localStorage.setItem('mtOrders_v5', JSON.stringify(orderCounts));
     }
 
-    // 메뉴 순서 변경 함수 (▲, ▼)
     function moveMenu(index, direction) {
         const targetIndex = index + direction;
-        // 범위를 벗어나면 취소
         if (targetIndex < 0 || targetIndex >= menuList.length) return;
         
-        // 배열 요소 스와프(Swap)
         const temp = menuList[index];
         menuList[index] = menuList[targetIndex];
         menuList[targetIndex] = temp;
@@ -216,7 +216,6 @@
         let total = 0;
         let summaryArr = [];
 
-        // 무조건 menuList에 배치된 순서 그대로 요약창에 띄웁니다.
         menuList.forEach(menu => {
             if (menu.hasTemp) {
                 const iceKey = `${menu.name}(I)`;
@@ -249,19 +248,24 @@
         }
     }
 
-    // [수정] 정렬 기능(.sort)을 완전히 빼서 입력한 순서대로 아래에 쌓이게 변경
     function addMenu() {
         const nameInput = document.getElementById('newMenuName');
-        const hasTemp = document.getElementById('hasTemp').checked;
+        const checkbox = document.getElementById('hasTemp');
         const name = nameInput.value.trim();
+        
+        // 확실하게 현재 체크박스의 상태 boolean 값을 가져옵니다.
+        const hasTemp = checkbox.checked; 
 
         if (!name) return;
         if (name.length > 20) { alert('메뉴 이름이 너무 깁니다.'); return; }
         if (menuList.some(m => m.name === name)) { alert('이미 있는 메뉴입니다.'); return; }
 
-        menuList.push({ name, hasTemp }); // 정렬 없이 바로 push
+        menuList.push({ name, hasTemp });
         
         nameInput.value = '';
+        // 등록 후 다음 입력을 위해 체크박스는 기본 체크(true) 상태로 유지
+        checkbox.checked = true; 
+        
         render();
     }
 
