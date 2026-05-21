@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오늘의 카페 메뉴 추천</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background-color: #f5f5f7; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background-color: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; box-sizing: border-box; }
+        h1 { color: #333; margin-bottom: 24px; font-size: 24px; }
+        .input-group { display: flex; margin-bottom: 20px; gap: 8px; }
+        input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        button { background-color: #0071e3; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #0077ed; }
+        .pick-btn { width: 100%; background-color: #34c759; padding: 14px; font-size: 18px; margin-bottom: 20px; }
+        .pick-btn:hover { background-color: #30b651; }
+        .result { font-size: 22px; font-weight: bold; color: #ff9500; margin: 20px 0; min-height: 33px; }
+        .menu-list { text-align: left; max-height: 200px; overflow-y: auto; border-top: 1px solid #eee; padding-top: 15px; }
+        .menu-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 16px; color: #555; }
+        .del-btn { background: none; color: #ff3b30; padding: 2px 8px; font-size: 14px; }
+        .del-btn:hover { background-color: #ffe5e5; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>☕ 오늘의 메뉴 고르기</h1>
+    
+    <button class="pick-btn" onclick="pickMenu()">무작위 메뉴 추첨!</button>
+    <div class="result" id="resultDisplay"></div>
+
+    <div class="input-group">
+        <input type="text" id="menuInput" placeholder="새로운 메뉴 입력" onkeypress="if(event.keyCode==13) addMenu()">
+        <button onclick="addMenu()">추가</button>
+    </div>
+
+    <div class="menu-list" id="menuListDisplay"></div>
+</div>
+
+<script>
+    // 처음에 보여줄 기본 메뉴 (로컬 스토리지에 저장된 게 없다면 사용됨)
+    const defaultMenus = ['아메리카노', '카페라떼', '바닐라라떼', '콜드브루', '자몽에이드'];
+    
+    // 로컬 스토리지에서 메뉴 불러오기
+    let menuList = JSON.parse(localStorage.getItem('myCafeMenus')) || defaultMenus;
+
+    // 화면에 메뉴 목록 표시하는 함수
+    function displayMenus() {
+        const listDisplay = document.getElementById('menuListDisplay');
+        listDisplay.innerHTML = '';
+        
+        menuList.forEach((menu, index) => {
+            const item = document.createElement('div');
+            item.className = 'menu-item';
+            item.innerHTML = `
+                <span>${menu}</span>
+                <button class="del-btn" onclick="deleteMenu(${index})">삭제</button>
+            `;
+            listDisplay.appendChild(item);
+        });
+        
+        // 변경된 메뉴 목록을 로컬 스토리지에 저장
+        localStorage.setItem('myCafeMenus', JSON.stringify(menuList));
+    }
+
+    // 메뉴 추가 함수
+    function addMenu() {
+        const input = document.getElementById('menuInput');
+        const newMenu = input.value.trim();
+        
+        if (newMenu === '') return;
+        if (menuList.includes(newMenu)) {
+            alert('이미 존재하는 메뉴입니다!');
+            return;
+        }
+        
+        menuList.push(newMenu);
+        input.value = '';
+        displayMenus();
+    }
+
+    // 메뉴 삭제 함수
+    function deleteMenu(index) {
+        menuList.splice(index, 1);
+        displayMenus();
+    }
+
+    // 랜덤 추첨 함수
+    function pickMenu() {
+        const resultDisplay = document.getElementById('resultDisplay');
+        if (menuList.length === 0) {
+            resultDisplay.innerText = '메뉴를 먼저 등록해주세요!';
+            return;
+        }
+        
+        // 간단한 애니메이션 효과 효과 (릴레이 셔플)
+        let count = 0;
+        const interval = setInterval(() => {
+            const randomName = menuList[Math.floor(Math.random() * menuList.length)];
+            resultDisplay.innerText = `🎲 ${randomName}`;
+            count++;
+            if (count > 10) {
+                clearInterval(interval);
+                const finalPick = menuList[Math.floor(Math.random() * menuList.length)];
+                resultDisplay.innerText = `🎉 픽된 메뉴: ${finalPick}`;
+            }
+        }, 50);
+    }
+
+    // 페이지 시작 시 메뉴 목록 보여주기
+    displayMenus();
+</script>
+
+</body>
+</html>
