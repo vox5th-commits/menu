@@ -20,14 +20,19 @@
         .counter-box.ice { border-color: #bcd9ff; }
         .counter-box.hot { border-color: #ffcccc; }
         
-        .btn-cnt { border: none; background: #e5e5ea; color: #333; width: 30px; height: 30px; border-radius: 4px; font-size: 18px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        /* [중요] 꾹 누를 때 스마트폰 텍스트 선택 팝업이나 확대경이 뜨는 것 방지 */
+        .btn-cnt { 
+            border: none; background: #e5e5ea; color: #333; width: 34px; height: 34px; border-radius: 4px; font-size: 18px; font-weight: bold; cursor: pointer; 
+            display: flex; align-items: center; justify-content: center;
+            user-select: none; -webkit-user-select: none; 
+        }
         .btn-cnt:active { background: #d1d1d6; }
         .btn-cnt.ice-plus { background-color: #e0eeff; color: var(--ice); }
         .btn-cnt.ice-plus:active { background-color: #c7e1ff; }
         .btn-cnt.hot-plus { background-color: #ffeae9; color: var(--hot); }
         .btn-cnt.hot-plus:active { background-color: #ffdad9; }
 
-        .cnt-num { font-size: 15px; font-weight: bold; min-width: 26px; text-align: center; color: #333; }
+        .cnt-num { font-size: 15px; font-weight: bold; min-width: 26px; text-align: center; color: #333; user-select: none; -webkit-user-select: none; }
         .counter-box.ice .cnt-num { color: var(--ice); }
         .counter-box.hot .cnt-num { color: var(--hot); }
 
@@ -41,13 +46,11 @@
         .btn-reset { background: #8e8e93; color: white; }
         .btn-copy { background: var(--primary); color: white; }
         
-        /* 편집 구역 스타일 개편 */
         .admin-section { border-top: 1px dashed #d1d1d6; padding-top: 16px; margin-top: 10px; }
         .admin-title { font-size: 13px; color: #8e8e93; margin-bottom: 8px; font-weight: bold; }
         .input-group { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
         .input-group input[type="text"] { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
         
-        /* 모바일 터치 미스 방지를 위해 체크박스 영역 분리 및 확대 */
         .check-container { display: flex; align-items: center; gap: 4px; cursor: pointer; padding: 4px; }
         .check-container input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; margin: 0; }
         .checkbox-label { font-size: 13px; color: #333; font-weight: 600; user-select: none; cursor: pointer; }
@@ -63,7 +66,7 @@
             .menu-card { padding: 6px 8px; }
             .menu-name { font-size: 14px; max-width: 35%; }
             .counter-group { gap: 4px; }
-            .btn-cnt { width: 28px; height: 28px; font-size: 16px; }
+            .btn-cnt { width: 30px; height: 30px; font-size: 16px; }
             .cnt-num { min-width: 22px; font-size: 14px; }
         }
     </style>
@@ -88,7 +91,6 @@
         <button class="btn-main btn-copy" onclick="copyToClipboard()">복사</button>
     </div>
 
-    <!-- [오류 수정] 체크박스와 라벨 구조를 완벽히 독립시켜 모바일 터치 씹힘 현상 방지 -->
     <div class="admin-section">
         <div class="admin-title">⚙️ 메뉴판 편집 (순서 조정 및 추가/삭제)</div>
         <div class="input-group">
@@ -113,9 +115,61 @@
         { name: '자몽에이드', hasTemp: false }
     ];
 
-    // 신규 데이터를 안전하게 불러오기 위해 버전 접미사 v5로 변경
-    let menuList = JSON.parse(localStorage.getItem('mtMenuBoard_v5')) || defaultMenus;
-    let orderCounts = JSON.parse(localStorage.getItem('mtOrders_v5')) || {};
+    let menuList = JSON.parse(localStorage.getItem('mtMenuBoard_v6')) || defaultMenus;
+    let orderCounts = JSON.parse(localStorage.getItem('mtOrders_v6')) || {};
+
+    // 연속 입력을 제어하기 위한 전역 타이머 변수
+    let holdTimer = null;
+    let holdInterval = null;
+
+    // [핵심] 꾹 누르기 시작할 때 작동하는 함수 (PC 마우스 및 모바일 터치 대응)
+    function startCount(e, key, val, id) {
+        // 모바일 브라우저에서 스크롤 씹힘이나 더블 탭 확대를 방지하기 위해 터치 이벤트만 단독 제어
+        if (e && e.type === 'touchstart') {
+            if (e.cancelable) e.preventDefault();
+        }
+        
+        // 누르자마자 즉시 1칸 올리거나 내림
+        changeCnt(key, val, id);
+        
+        // 혹시 남아있을지 모를 타이머 초기화
+        stopCount();
+        
+        // 0.4초(400ms) 동안 계속 누르고 있다면, 그때부터 0.08초(80ms)마다 1씩 광속으로 증감
+        holdTimer = setTimeout(() => {
+            holdInterval = setInterval(() => {
+                changeCnt(key, val, id);
+            }, 80);
+        }, 400);
+    }
+
+    // 마우스나 손가락을 떼면 타이머를 폭파시키는 함수
+    function stopCount() {
+        if (holdTimer) clearTimeout(holdTimer);
+        if (holdInterval) clearInterval(holdInterval);
+        holdTimer = null;
+        holdInterval = null;
+    }
+
+    // 전체 판을 갈아엎지 않고, 특정 타겟의 숫자 노드만 부분 변경하는 구조로 개선
+    function changeCnt(key, val, id) {
+        let current = orderCounts[key] || 0;
+        current += val;
+        
+        if (current <= 0) {
+            current = 0;
+            delete orderCounts[key];
+        } else {
+            orderCounts[key] = current;
+        }
+        
+        // 전체 리렌더링 대신 해당 ID의 숫자 텍스트만 쏙 바꿈 (버튼 파괴 방지)
+        const el = document.getElementById(id);
+        if (el) el.innerText = current;
+        
+        updateSummary();
+        localStorage.setItem('mtOrders_v6', JSON.stringify(orderCounts));
+    }
 
     function render() {
         const grid = document.getElementById('menuGrid');
@@ -138,30 +192,46 @@
             if (menu.hasTemp) {
                 const iceKey = `${menu.name}(I)`;
                 const iceCnt = orderCounts[iceKey] || 0;
+                const iceId = `num-ice-${index}`;
                 counterGroup.innerHTML += `
                     <div class="counter-box ice">
-                        <button class="btn-cnt" onclick="changeCnt('${iceKey}', -1)">-</button>
-                        <span class="cnt-num">${iceCnt}</span>
-                        <button class="btn-cnt ice-plus" onclick="changeCnt('${iceKey}', 1)">+</button>
+                        <button class="btn-cnt" 
+                                onmousedown="startCount(event, '${iceKey}', -1, '${iceId}')" onmouseup="stopCount()" onmouseleave="stopCount()"
+                                ontouchstart="startCount(event, '${iceKey}', -1, '${iceId}')" ontouchend="stopCount()" ontouchcancel="stopCount()">-</button>
+                        <span class="cnt-num" id="${iceId}">${iceCnt}</span>
+                        <button class="btn-cnt ice-plus" 
+                                onmousedown="startCount(event, '${iceKey}', 1, '${iceId}')" onmouseup="stopCount()" onmouseleave="stopCount()"
+                                ontouchstart="startCount(event, '${iceKey}', 1, '${iceId}')" ontouchend="stopCount()" ontouchcancel="stopCount()">+</button>
                     </div>
                 `;
+                
                 const hotKey = `${menu.name}(H)`;
                 const hotCnt = orderCounts[hotKey] || 0;
+                const hotId = `num-hot-${index}`;
                 counterGroup.innerHTML += `
                     <div class="counter-box hot">
-                        <button class="btn-cnt" onclick="changeCnt('${hotKey}', -1)">-</button>
-                        <span class="cnt-num">${hotCnt}</span>
-                        <button class="btn-cnt hot-plus" onclick="changeCnt('${hotKey}', 1)">+</button>
+                        <button class="btn-cnt" 
+                                onmousedown="startCount(event, '${hotKey}', -1, '${hotId}')" onmouseup="stopCount()" onmouseleave="stopCount()"
+                                ontouchstart="startCount(event, '${hotKey}', -1, '${hotId}')" ontouchend="stopCount()" ontouchcancel="stopCount()">-</button>
+                        <span class="cnt-num" id="${hotId}">${hotCnt}</span>
+                        <button class="btn-cnt hot-plus" 
+                                onmousedown="startCount(event, '${hotKey}', 1, '${hotId}')" onmouseup="stopCount()" onmouseleave="stopCount()"
+                                ontouchstart="startCount(event, '${hotKey}', 1, '${hotId}')" ontouchend="stopCount()" ontouchcancel="stopCount()">+</button>
                     </div>
                 `;
             } else {
                 const key = menu.name;
                 const cnt = orderCounts[key] || 0;
+                const singleId = `num-single-${index}`;
                 counterGroup.innerHTML += `
                     <div class="counter-box">
-                        <button class="btn-cnt" onclick="changeCnt('${key}', -1)">-</button>
-                        <span class="cnt-num">${cnt}</span>
-                        <button class="btn-cnt" style="background-color:#f0f0f2" onclick="changeCnt('${key}', 1)">+</button>
+                        <button class="btn-cnt" 
+                                onmousedown="startCount(event, '${key}', -1, '${singleId}')" onmouseup="stopCount()" onmouseleave="stopCount()"
+                                ontouchstart="startCount(event, '${key}', -1, '${singleId}')" ontouchend="stopCount()" ontouchcancel="stopCount()">-</button>
+                        <span class="cnt-num" id="${singleId}">${cnt}</span>
+                        <button class="btn-cnt" style="background-color:#f0f0f2" 
+                                onmousedown="startCount(event, '${key}', 1, '${singleId}')" onmouseup="stopCount()" onmouseleave="stopCount()"
+                                ontouchstart="startCount(event, '${key}', 1, '${singleId}')" ontouchend="stopCount()" ontouchcancel="stopCount()">+</button>
                     </div>
                 `;
             }
@@ -183,30 +253,8 @@
         });
 
         updateSummary();
-        localStorage.setItem('mtMenuBoard_v5', JSON.stringify(menuList));
-        localStorage.setItem('mtOrders_v5', JSON.stringify(orderCounts));
-    }
-
-    function moveMenu(index, direction) {
-        const targetIndex = index + direction;
-        if (targetIndex < 0 || targetIndex >= menuList.length) return;
-        
-        const temp = menuList[index];
-        menuList[index] = menuList[targetIndex];
-        menuList[targetIndex] = temp;
-        
-        render();
-    }
-
-    function changeCnt(key, val) {
-        let current = orderCounts[key] || 0;
-        current += val;
-        if (current <= 0) {
-            delete orderCounts[key];
-        } else {
-            orderCounts[key] = current;
-        }
-        render();
+        localStorage.setItem('mtMenuBoard_v6', JSON.stringify(menuList));
+        localStorage.setItem('mtOrders_v6', JSON.stringify(orderCounts));
     }
 
     function updateSummary() {
@@ -252,8 +300,6 @@
         const nameInput = document.getElementById('newMenuName');
         const checkbox = document.getElementById('hasTemp');
         const name = nameInput.value.trim();
-        
-        // 확실하게 현재 체크박스의 상태 boolean 값을 가져옵니다.
         const hasTemp = checkbox.checked; 
 
         if (!name) return;
@@ -263,9 +309,7 @@
         menuList.push({ name, hasTemp });
         
         nameInput.value = '';
-        // 등록 후 다음 입력을 위해 체크박스는 기본 체크(true) 상태로 유지
         checkbox.checked = true; 
-        
         render();
     }
 
